@@ -1,0 +1,204 @@
+{
+  "name": "03 Negotiation Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "negotiate",
+        "options": {}
+      },
+      "id": "6551cbb5-8058-4d08-9ff6-64f7fa16935b",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -1008,
+        64
+      ],
+      "webhookId": "76669ad4-a16f-4e0f-8426-f52ee6e5edec"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.FASTAPI_URL }}/agents/negotiate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"lead_id\": \"{{ $json.lead_id }}\",\n  \"customer_message\": \"{{ $json.customer_message }}\",\n  \"history\": [],\n  \"intent\": \"medium\"\n}",
+        "options": {}
+      },
+      "id": "89c68fb1-8349-49e3-93ae-543c0ed75c82",
+      "name": "Handle Objection",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -800,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Webhook').item.json.body.email }}",
+        "subject": "=Re: {{ $('Webhook').item.json.body.objection_type }} — Following up",
+        "message": "={{ $('Handle Objection').item.json.response_message }}",
+        "options": {}
+      },
+      "id": "39a5cfa1-87fa-46dd-80c6-21c357148743",
+      "name": "Send Negotiation Response Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        -608,
+        64
+      ],
+      "webhookId": "0579ed6f-415e-43f6-8ccb-4d135d204746",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YzinnY0ehjanxWCn",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.FASTAPI_URL }}/internal/event",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"lead_id\": \"{{ $('Webhook').item.json.body.lead_id }}\",\n  \"event\": \"negotiation_response_sent\",\n  \"step\": \"objection_handled\",\n  \"workflow_name\": \"negotiation\",\n  \"execution_id\": \"{{ $execution.id }}\",\n  \"data\": {\n    \"objection_type\": \"{{ $('Webhook').item.json.objection_type }}\",\n    \"strategy\": \"{{ $('Handle Objection').item.json.strategy_used }}\",\n    \"conversion_after\": {{ $('Handle Objection').item.json.conversion_probability }}\n  }\n}",
+        "options": {}
+      },
+      "id": "ef2e3407-ef84-4522-8c8f-b7a6efa157f9",
+      "name": "Notify Negotiation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -400,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "webhook",
+        "httpMethod": "POST",
+        "options": {}
+      },
+      "id": "c7cd1155-1145-46ba-9deb-40392a1ca933",
+      "name": "Wait for Second Reply",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        -208,
+        64
+      ],
+      "webhookId": "651e7efd-a495-42cf-bf35-abd414211dd9",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://localhost:5678/webhook-test/schedule-meeting",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"lead_id\": \"{{ $('Webhook').item.json.body.lead_id }}\",\n  \"name\": \"{{ $('Webhook').item.json.body.name }}\",\n  \"email\": \"{{ $('Webhook').item.json.body.email }}\",\n  \"timezone\": \"Asia/Kolkata\"\n}",
+        "options": {}
+      },
+      "id": "b7066c1a-06d7-4cce-b441-77ca4869e103",
+      "name": "Trigger Scheduler on Resume",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_BASE_URL }}/webhook/followup-start",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"lead_id\": \"{{ $('Webhook').item.json.lead_id }}\",\n  \"name\": \"{{ $('Webhook').item.json.name }}\",\n  \"days_since\": 3\n}",
+        "options": {}
+      },
+      "id": "8c483958-274e-417c-a510-9d565fd964ab",
+      "name": "Trigger Follow-up on Timeout",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        0,
+        240
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Handle Objection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Objection": {
+      "main": [
+        [
+          {
+            "node": "Send Negotiation Response Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Negotiation Response Email": {
+      "main": [
+        [
+          {
+            "node": "Notify Negotiation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Negotiation": {
+      "main": [
+        [
+          {
+            "node": "Wait for Second Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Second Reply": {
+      "main": [
+        [
+          {
+            "node": "Trigger Scheduler on Resume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "b62b2308-5dd1-4a8f-80e1-b7ff8c2ad722",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c1e3644dfcfa66866d7bb7e8c848db43b571b4cf550754987811cc1a64375401"
+  },
+  "id": "RLNilswxJD5ZUxsE",
+  "tags": []
+}

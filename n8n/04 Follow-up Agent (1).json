@@ -1,0 +1,567 @@
+{
+  "name": "04 Follow-up Agent",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "76e829f3-8cbd-401a-9743-365a7d5148d3",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "followup-start",
+        "options": {}
+      },
+      "id": "892c7ac1-43ab-4b58-92f1-7d8b0e25fb32",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        160
+      ],
+      "webhookId": "2f2dda4a-4a67-44ad-b9f2-57bc97bbfc47"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.FASTAPI_URL }}/api/leads/stale",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "cd580fc0-76d4-45c1-b234-a84732efefb2",
+      "name": "Get Stale Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        208,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "XjLTUwGcyEaKCNrZ",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "4da52fbf-3b0b-4253-a3ed-ea171c416c2f",
+      "name": "Split In Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        400,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://host.docker.internal:8000/agents/followup",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"lead_id\": \"{{ $json.body.lead_id }}\",\n  \"name\": \"{{ $json.body.name }}\",\n  \"company\": \"{{ $json.body.company }}\",\n  \"last_contact\": \"{{ $json.updated_at || $json.last_contact || '' }}\",\n  \"days_since\": {{ $json.days_since_contact || $json.days_since || 3 }},\n  \"previous_channel\": \"email\"\n}",
+        "options": {}
+      },
+      "id": "707dfdb3-a62e-4339-9c1b-2df67fac7a50",
+      "name": "Generate Follow-up",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        640,
+        80
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "XjLTUwGcyEaKCNrZ",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Split In Batches').item.json.body.email }}",
+        "subject": "={{ $('Generate Follow-up').item.json.subject }}",
+        "message": "={{ $('Generate Follow-up').item.json.message }}",
+        "options": {}
+      },
+      "id": "b8606082-5ab2-4a01-aab6-408b9ef21391",
+      "name": "Send Follow-up Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        832,
+        80
+      ],
+      "webhookId": "4afea9e3-0f80-4b7a-bdf9-d06f57f27c6f",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YzinnY0ehjanxWCn",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://host.docker.internal:8000/internal/event",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"lead_id\": \"{{ $('Webhook Trigger').item.json.body.lead_id }}\",\n  \"event\": \"followup_sent\",\n  \"step\": \"followup_email_sent\",\n  \"workflow_name\": \"followup\",\n  \"execution_id\": \"{{ $execution.id }}\",\n  \"data\": {\n    \"subject\": \"{{ $('Generate Follow-up').item.json.subject }}\"\n  }\n}",
+        "options": {}
+      },
+      "id": "ccbd8a55-31a8-4a40-ab5d-6f1e4230305c",
+      "name": "Notify Dashboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1088,
+        80
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "XjLTUwGcyEaKCNrZ",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resume": "webhook",
+        "limitWaitTime": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1296,
+        80
+      ],
+      "id": "47c3a5f9-2bfc-465d-932e-63629ec622a9",
+      "name": "Wait",
+      "webhookId": "58d8ef68-249e-4e09-9378-5fbfc26c3615"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "be945425-011d-4714-be3d-2c14ed8f2252",
+                    "leftValue": "={{ $json.detected_sentiment }}",
+                    "rightValue": "positive",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Positive"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "60c94d1e-4c2f-477f-b396-c796dd76fc60",
+                    "leftValue": "={{ $json.detected_sentiment }}",
+                    "rightValue": "neutral",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Neutral"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "737c5b5c-fa2b-4fd6-9de7-3fcca777d846",
+                    "leftValue": "={{ $json.detected_sentiment }}",
+                    "rightValue": "negative",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Negative"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1136,
+        528
+      ],
+      "id": "af611a29-5bf2-41f1-915b-fa81d6c3300e",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/agents/negotiate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"lead_id\": \"{{ $('Webhook Trigger').item.json.body.lead_id }}\",\n  \"customer_message\": \"{{ $json.body.customer_message }}\",\n  \"history\": [],\n  \"intent\": \"medium\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1872,
+        288
+      ],
+      "id": "266962fd-512e-4a00-8d98-aabd29366a75",
+      "name": "Analyze Reply Sentiment"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook-test/negotiate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"lead_id\": \"{{ $('Webhook Trigger').item.json.body.lead_id }}\",\n  \"name\": \"{{ $('Webhook Trigger').item.json.body.name }}\",\n  \"email\": \"{{ $('Webhook Trigger').item.json.body.email }}\",\n  \"objection_type\": \"{{ $('Analyze Reply Sentiment').item.json.detected_objection_type }}\",\n  \"customer_message\": \"{{ $('Wait').item.json.body.customer_message }}\",\n  \"response_message\": \"{{ $('Analyze Reply Sentiment').item.json.response_message }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1568,
+        736
+      ],
+      "id": "736dd80b-ef0a-4a7b-bb12-74c4f12319f4",
+      "name": "Trigger Negotiation Workflow"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook-test/schedule-meeting",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"lead_id\": \"{{ $('Webhook Trigger').item.json.body.lead_id }}\",\n  \"name\": \"{{ $('Webhook Trigger').item.json.body.name }}\",\n  \"email\": \"{{ $('Webhook Trigger').item.json.body.email }}\",\n  \"timezone\": \"Asia/Kolkata\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1520,
+        496
+      ],
+      "id": "7516b70e-f76c-4c51-bdb4-c42822602984",
+      "name": "Trigger Schedular Workflow"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "13c90b08-894c-4e88-ac3c-ea7ea574d02a",
+              "leftValue": "={{ $json.body.customer_message }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1536,
+        80
+      ],
+      "id": "3d8d0b07-024e-43a9-be96-5816d1f11062",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "66315c5e-586b-46c2-af60-d2d6de1b4966",
+              "leftValue": "={{ $json.followup_count || 0 }}",
+              "rightValue": 3,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        624,
+        336
+      ],
+      "id": "b7458dcc-1f7e-4414-a56d-dbe7f158b9a7",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"followup_count\": \"{{$json.followup_count ? $json.followup_count + 1 : 1}}\"\n}",
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        848,
+        320
+      ],
+      "id": "415fff17-a50e-4458-9fff-554f4a7a113d",
+      "name": "Increase Followup Count"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Stale Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Stale Leads": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split In Batches": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Generate Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Send Follow-up Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Follow-up Email": {
+      "main": [
+        [
+          {
+            "node": "Notify Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Dashboard": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Trigger Schedular Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Trigger Negotiation Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Reply Sentiment": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Analyze Reply Sentiment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Increase Followup Count",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Increase Followup Count": {
+      "main": [
+        [
+          {
+            "node": "Generate Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "bfdbee32-346f-4544-b568-84f1bb0b902f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c1e3644dfcfa66866d7bb7e8c848db43b571b4cf550754987811cc1a64375401"
+  },
+  "id": "WzdPzAsbwTUaDOCW",
+  "tags": []
+}

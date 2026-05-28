@@ -1,0 +1,280 @@
+{
+  "name": "01 Lead Intake + Qualifier",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-intake",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "3c933be8-7d94-43bc-a952-27f1d227809d",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -768,
+        -16
+      ],
+      "webhookId": "c36430ef-d246-4f9b-8408-28fc934651d0"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.FASTAPI_URL }}/internal/event",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"lead_id\": \"{{ $execution.id }}\",\n  \"name\": \"{{ $('Webhook').item.json.body.name }}\",\n  \"email\": \"{{ $('Webhook').item.json.body.email }}\",\n  \"message\": \"{{ $('Webhook').item.json.body.message }}\",\n  \"company\": \"{{ $('Webhook').item.json.body.company }}\",\n  \"event\": \"pipeline_started\",\n  \"step\": \"intake\",\n  \"workflow_name\": \"lead_intake\",\n  \"execution_id\": \"{{ $execution.id }}\"\n}",
+        "options": {}
+      },
+      "id": "36dfcfe7-cbbb-4b15-acac-67c83f57c0c6",
+      "name": "Create Execution Record",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -576,
+        -16
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "XjLTUwGcyEaKCNrZ",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.FASTAPI_URL }}/agents/qualify",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"lead_id\": \"{{ $execution.id }}\",\n  \"name\": \"{{ $('Webhook').item.json.body.name }}\",\n  \"email\": \"{{ $('Webhook').item.json.body.email }}\",\n  \"message\": \"{{ $('Webhook').item.json.body.message }}\",\n  \"company\": \"{{ $('Webhook').item.json.body.company }}\",\n  \"source\": \"{{ $('Webhook').item.json.body.source }}\"\n}",
+        "options": {}
+      },
+      "id": "be7aa878-c2d8-4dcd-9734-594fcd6648e9",
+      "name": "Qualify Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -368,
+        -16
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "XjLTUwGcyEaKCNrZ",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.intent }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "high"
+            },
+            {
+              "value2": "medium"
+            },
+            {
+              "value2": "low"
+            }
+          ]
+        }
+      },
+      "id": "31c71938-6a75-4b37-8291-b6443ea04db8",
+      "name": "Route by Intent",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        -144,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.FASTAPI_URL }}/internal/event",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"lead_id\": \"{{ $('Qualify Lead').item.json.lead_id }}\",\n  \"name\": \"{{ $('Webhook').item.json.body.name }}\",\n  \"email\": \"{{ $('Webhook').item.json.body.email }}\",\n  \"company\": \"{{ $('Webhook').item.json.body.company }}\",\n  \"intent\": \"{{ $('Qualify Lead').item.json.intent }}\",\n  \"mood\": \"{{ $('Qualify Lead').item.json.mood }}\",\n  \"score\": \"{{ $('Qualify Lead').item.json.score }}\",\n  \"predicted_objection\": \"{{ $('Qualify Lead').item.json.predicted_objection }}\"\n}",
+        "options": {}
+      },
+      "id": "52cb52e4-7767-43f5-a747-79b8fb11eb0b",
+      "name": "Notify High Intent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        80,
+        -128
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "XjLTUwGcyEaKCNrZ",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resume": "afterTimeInterval"
+      },
+      "id": "057ad82b-beb1-4f75-9403-2e6ee3c2ee25",
+      "name": "Wait 1 Hour",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        80,
+        16
+      ],
+      "webhookId": "0bd52c24-eb34-45a1-89fd-072dc609b94b"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.FASTAPI_URL }}/internal/event",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"lead_id\": \"{{ $('Webhook').item.json.lead_id }}\",\n  \"event\": \"lead_low_intent\",\n  \"step\": \"added_to_nurture\",\n  \"workflow_name\": \"lead_intake\",\n  \"execution_id\": \"{{ $execution.id }}\"\n}",
+        "options": {}
+      },
+      "id": "255ec30b-ac63-4223-9bd9-d2222b10687d",
+      "name": "Notify Low Intent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        80,
+        144
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "XjLTUwGcyEaKCNrZ",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_BASE_URL }}/webhook-test/outreach-start",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"lead_id\": \"{{ $('Qualify Lead').item.json.lead_id }}\",\n  \"name\": \"{{ $('Webhook').item.json.body.name }}\",\n  \"email\": \"{{ $('Webhook').item.json.body.email }}\",\n  \"company\": \"{{ $('Webhook').item.json.body.company }}\",\n  \"intent\": \"{{ $('Qualify Lead').item.json.intent }}\",\n  \"mood\": \"{{ $('Qualify Lead').item.json.mood }}\",\n  \"score\": \"{{ $('Qualify Lead').item.json.score }}\",\n  \"predicted_objection\": \"{{ $('Qualify Lead').item.json.predicted_objection }}\"\n}",
+        "options": {}
+      },
+      "id": "7441d835-9dfd-467c-a62c-1293866be604",
+      "name": "Trigger Outreach",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        336,
+        -64
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Create Execution Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Execution Record": {
+      "main": [
+        [
+          {
+            "node": "Qualify Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qualify Lead": {
+      "main": [
+        [
+          {
+            "node": "Route by Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Intent": {
+      "main": [
+        [
+          {
+            "node": "Notify High Intent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait 1 Hour",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Low Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify High Intent": {
+      "main": [
+        [
+          {
+            "node": "Trigger Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 1 Hour": {
+      "main": [
+        [
+          {
+            "node": "Trigger Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "ab4e3e31-6888-4071-bfd8-4573cf783298",
+  "meta": {
+    "instanceId": "c1e3644dfcfa66866d7bb7e8c848db43b571b4cf550754987811cc1a64375401"
+  },
+  "id": "AY4445qutnYIGOT9",
+  "tags": []
+}

@@ -1,0 +1,365 @@
+{
+  "name": "02 Outreach Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "outreach-start",
+        "options": {}
+      },
+      "id": "fd725c19-136e-4f20-baa1-bece047e2970",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -1456,
+        128
+      ],
+      "webhookId": "e4284596-b28e-4690-a0b5-4acbb6337fde"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.FASTAPI_URL }}/agents/outreach",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"lead_id\": \"{{ $json.body.lead_id }}\",\n  \"name\": \"{{ $json.body.name }}\",\n  \"email\": \"{{ $json.body.email }}\",\n  \"company\": \"{{ $json.body.company }}\",\n  \"intent\": \"{{ $json.body.intent }}\",\n  \"mood\": \"{{ $json.body.mood }}\",\n  \"score\": \"{{ $json.body.score }}\",\n  \"predicted_objection\": \"{{ $json.body.predicted_objection }}\"\n}",
+        "options": {}
+      },
+      "id": "c0e6f5be-73d1-42a8-ac7c-3ceb18430e5d",
+      "name": "Generate Outreach",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -1248,
+        128
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "XjLTUwGcyEaKCNrZ",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "={{ $('Generate Outreach').item.json.email_subject }}",
+        "message": "={{ $('Generate Outreach').item.json.email_body }}",
+        "options": {}
+      },
+      "id": "ad7c01d7-5282-4cf8-8f49-2940b58816fa",
+      "name": "Send Email via Gmail",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        -1056,
+        128
+      ],
+      "webhookId": "7f0f76de-b779-4bfa-ad0f-2550bbbdcf52",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YzinnY0ehjanxWCn",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.FASTAPI_URL }}/internal/event",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"lead_id\": \"{{ $json.body.lead_id }}\",\n  \"event\": \"outreach_sent\",\n  \"step\": \"email_sent\",\n  \"workflow_name\": \"outreach\",\n  \"execution_id\": \"{{ $execution.id }}\",\n  \"data\": {\n    \"subject\": \"{{ $('Generate Outreach').item.json.email_subject }}\",\n    \"channel\": \"email\"\n  }\n}",
+        "options": {}
+      },
+      "id": "2406b860-3cb2-4b77-9085-fd589272ba6a",
+      "name": "Notify Email Sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -848,
+        128
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "XjLTUwGcyEaKCNrZ",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resume": "webhook",
+        "httpMethod": "POST",
+        "limitWaitTime": true,
+        "resumeUnit": "minutes",
+        "options": {}
+      },
+      "id": "c6170404-1da7-4bb1-abc1-dd7a79b3058e",
+      "name": "Wait for Reply",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        -656,
+        128
+      ],
+      "webhookId": "cdb06836-5bb7-4916-912f-dbc7e6558116"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.FASTAPI_URL }}/agents/negotiate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"lead_id\": \"{{ $('Webhook').item.json.body.lead_id }}\",\n  \"customer_message\": \"{{ $json.body.customer_message }}\",\n  \"history\": [],\n  \"intent\": \"{{ $('Webhook').item.json.body.intent }}\"\n}",
+        "options": {}
+      },
+      "id": "ffedaefa-f5e1-4bdf-8c9b-8f609223dbfe",
+      "name": "Analyze Reply Sentiment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -448,
+        128
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "XjLTUwGcyEaKCNrZ",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.detected_objection_type }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "price"
+            },
+            {
+              "value2": "timing"
+            },
+            {
+              "value2": "trust"
+            },
+            {
+              "value2": "interested"
+            }
+          ]
+        }
+      },
+      "id": "2f25c2b7-b366-4fed-b5aa-cf1d87f374b8",
+      "name": "Route by Reply Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        -224,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://localhost:5678/webhook-test/schedule-meeting",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"lead_id\": \"{{ $('Webhook').item.json.body.lead_id }}\",\n  \"name\": \"{{ $('Webhook').item.json.body.name }}\",\n  \"email\": \"{{ $('Webhook').item.json.body.email }}\",\n  \"timezone\": \"Asia/Kolkata\"\n}",
+        "options": {}
+      },
+      "id": "85df7093-8250-4f70-98af-2d423b019fba",
+      "name": "Trigger Scheduler Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        0,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://localhost:5678/webhook-test/negotiate\n",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"lead_id\": \"{{ $('Webhook').item.json.body.lead_id }}\",\n  \"name\": \"{{ $('Webhook').item.json.body.name }}\",\n  \"email\": \"{{ $('Webhook').item.json.body.email }}\",\n  \"objection_type\": \"{{ $json.detected_objection_type }}\",\n  \"customer_message\": \"{{ $('Wait for Reply').item.json.body.customer_message }}\",\n  \"response_message\": \"{{ $json.response_message }}\"\n}",
+        "options": {}
+      },
+      "id": "f09904c8-221b-4649-b18c-ae6b9341f5af",
+      "name": "Trigger Negotiation Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://host.docker.internal:5678/webhook-test/followup-start",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "lead_id",
+              "value": "={{ $('Webhook').item.json.body.lead_id }}"
+            },
+            {
+              "name": "name",
+              "value": "={{ $('Webhook').item.json.body.name }}"
+            },
+            {
+              "name": "email",
+              "value": "={{ $('Webhook').item.json.body.email }}"
+            },
+            {
+              "name": "followup_reason",
+              "value": "no_reply"
+            },
+            {
+              "name": "last_message",
+              "value": "={{ $('Generate Outreach').item.json.email_body }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "954d44b1-4555-464a-b348-479b155e4e8d",
+      "name": "Trigger Follow-up on Timeout",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -512,
+        368
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Generate Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Outreach": {
+      "main": [
+        [
+          {
+            "node": "Send Email via Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email via Gmail": {
+      "main": [
+        [
+          {
+            "node": "Notify Email Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Email Sent": {
+      "main": [
+        [
+          {
+            "node": "Wait for Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Reply": {
+      "main": [
+        [
+          {
+            "node": "Analyze Reply Sentiment",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Trigger Follow-up on Timeout",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Reply Sentiment": {
+      "main": [
+        [
+          {
+            "node": "Route by Reply Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Reply Type": {
+      "main": [
+        [
+          {
+            "node": "Trigger Negotiation Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Trigger Negotiation Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Trigger Negotiation Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Trigger Scheduler Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "78219f48-1aac-4207-a1a7-25dff1a7a03e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c1e3644dfcfa66866d7bb7e8c848db43b571b4cf550754987811cc1a64375401"
+  },
+  "id": "QXtbX2yHGU2sgErn",
+  "tags": []
+}

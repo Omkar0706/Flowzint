@@ -1,0 +1,249 @@
+{
+  "name": "05 Scheduler Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "schedule-meeting",
+        "options": {}
+      },
+      "id": "39c5b11e-d0aa-4e2e-8143-05f1d8d8f5b0",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "aac03e77-59e4-4395-8ca2-8811079cfc24"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Webhook').item.json.body.email }}",
+        "subject": "Meeting Confirmed — FlowZint Demo",
+        "message": "=Hi {{ $('Webhook').item.json.body.name }},\n\nYour demo is confirmed!\n\nDate: {{ $('Find Best Time').item.json.meeting_date }}\nTime: {{ $('Find Best Time').item.json.meeting_time }}\n\nMeeting Link:\n{{ $('Create an event').item.json.hangoutLink || $('Create an event').item.json.htmlLink }}\n\nLooking forward to it!\n\nBest,\nFlowZint Team",
+        "options": {}
+      },
+      "id": "4136a702-2107-4a9d-8799-15748ab068d1",
+      "name": "Send Confirmation Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        816,
+        0
+      ],
+      "webhookId": "a507be20-5abc-44e3-a9bb-2e29ecb4cba1",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YzinnY0ehjanxWCn",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://host.docker.internal:8000/internal/event",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"lead_id\": \"{{ $('Webhook').item.json.body.lead_id }}\",\n  \"event\": \"meeting_booked\",\n  \"step\": \"calendar_event_created\",\n  \"workflow_name\": \"scheduler\",\n  \"execution_id\": \"{{ $execution.id }}\",\n  \"data\": {\n    \"meeting_time\": \"{{ $('Find Best Time').item.json.meeting_start }}\",\n    \"meet_link\": \"{{ $('Create an event').item.json.hangoutLink || $('Create an event').item.json.htmlLink }}\"\n  }\n}",
+        "options": {}
+      },
+      "id": "bde8af18-27cf-4b60-a5f9-0ca92563a5c3",
+      "name": "Notify Dashboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1008,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "XjLTUwGcyEaKCNrZ",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "omkarprasadchoudhury@gmail.com",
+          "mode": "list",
+          "cachedResultName": "omkarprasadchoudhury@gmail.com"
+        },
+        "start": "={{ $('Find Best Time').item.json.meeting_start }}",
+        "end": "={{ $('Find Best Time').item.json.meeting_end }}",
+        "additionalFields": {
+          "attendees": [
+            "={{ $('Webhook').item.json.body.email }}"
+          ],
+          "conferenceDataUi": {
+            "conferenceDataValues": {
+              "conferenceSolution": "hangoutsMeet"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        416,
+        0
+      ],
+      "id": "1174a044-75bd-4044-b26e-fbf46e50e3b5",
+      "name": "Create an event",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "DJxIT9LJULZr6qFD",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/agents/schedule",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"lead_id\": \"{{ $json.body.lead_id }}\",\n  \"name\": \"{{ $json.body.name }}\",\n  \"email\": \"{{ $json.body.email }}\",\n  \"timezone\": \"Asia/Kolkata\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        208,
+        0
+      ],
+      "id": "0e7522b6-f00c-430a-98d5-afaf1b9cf10e",
+      "name": "Find Best Time"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5d541173-a353-4429-89c1-9bbac0e89344",
+              "name": "lead_id",
+              "value": "={{ $('Webhook').item.json.body.lead_id }}",
+              "type": "string"
+            },
+            {
+              "id": "6155c41b-2ed2-4097-befb-273695b371ec",
+              "name": "name",
+              "value": "={{ $('Webhook').item.json.body.name }}",
+              "type": "string"
+            },
+            {
+              "id": "f22f25e5-d560-440b-91c6-2cc851fcabb5",
+              "name": "email",
+              "value": "={{ $('Webhook').item.json.body.email }}",
+              "type": "string"
+            },
+            {
+              "id": "a2c600a2-fec4-4081-9e8c-69c225d41ee9",
+              "name": "meeting_title",
+              "value": "={{ $('Find Best Time').item.json.meeting_title }}",
+              "type": "string"
+            },
+            {
+              "id": "f62bf770-d8c2-4cfb-a604-0a30d767923c",
+              "name": "meeting_start",
+              "value": "={{ $('Find Best Time').item.json.meeting_start }}",
+              "type": "string"
+            },
+            {
+              "id": "93f5e023-7f7b-471f-a86b-8273a82d9b4c",
+              "name": "meeting_link",
+              "value": "={{ $('Create an event').item.json.hangoutLink }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        624,
+        0
+      ],
+      "id": "9184af8c-b16a-4e6a-9b44-006c1b4576b9",
+      "name": "Edit Fields"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Find Best Time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Confirmation Email": {
+      "main": [
+        [
+          {
+            "node": "Notify Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Best Time": {
+      "main": [
+        [
+          {
+            "node": "Create an event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create an event": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Send Confirmation Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "7c81ea55-e28a-49c6-9adc-e37c3d4ecdc3",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c1e3644dfcfa66866d7bb7e8c848db43b571b4cf550754987811cc1a64375401"
+  },
+  "id": "3HTNDusIXiRDrE6g",
+  "tags": []
+}
